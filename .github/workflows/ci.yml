@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend Validation
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://postgres:password@localhost:5432/mydatabase
+      TEST_DATABASE_URL: postgresql://postgres:password@localhost:5433/testdatabase
+      ACCESS_SECRET_KEY: test-access-secret
+      RESET_PASSWORD_SECRET_KEY: test-reset-secret
+      VERIFICATION_SECRET_KEY: test-verification-secret
+      CORS_ORIGINS: '["http://localhost:3000"]'
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: testdatabase
+        ports:
+          - 5433:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync backend dependencies
+        working-directory: fastapi_backend
+        run: uv sync --dev
+
+      - name: Ruff
+        working-directory: fastapi_backend
+        run: uv run ruff check .
+
+      - name: Pytest
+        working-directory: fastapi_backend
+        run: uv run pytest
+
+  frontend:
+    name: Frontend Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: nextjs-frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: nextjs-frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: nextjs-frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: nextjs-frontend
+        run: npm run build
